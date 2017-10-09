@@ -1,0 +1,196 @@
+package com.xiaomu.manager
+{
+	import com.xiaomu.data.Question;
+	import com.xiaomu.data.Team;
+	import com.xiaomu.view.otherview.QuestionView;
+	import com.xiaomu.view.otherview.SettingView;
+	
+	import flash.events.Event;
+	import flash.events.EventDispatcher;
+	import flash.net.URLLoader;
+	import flash.net.URLRequest;
+	
+	import coco.data.Message;
+	import coco.event.SocketEvent;
+	import coco.net.SocketClient;
+	
+	[Event(name="connect", type="coco.event.SocketEvent")]
+	
+	[Event(name="disconnect", type="coco.event.SocketEvent")]
+	
+	/**
+	 * Socket服务管理器 
+	 * 
+	 * @author coco
+	 */	
+	public class ServiceManager extends EventDispatcher
+	{
+		public function ServiceManager()
+		{
+		}
+		
+		
+		//----------------------------------------------------------------------------------------------------------------
+		//
+		//  Get Instance
+		//
+		//----------------------------------------------------------------------------------------------------------------
+		
+		private static var instance:ServiceManager;
+		
+		public static function getInstance():ServiceManager
+		{
+			if (!instance)
+				instance = new ServiceManager();
+			
+			return instance;
+		}
+		
+		
+		//----------------------------------------------------------------------------------------------------------------
+		//
+		//  Variables
+		//
+		//----------------------------------------------------------------------------------------------------------------
+		
+		
+		//----------------------------------------------------------------------------------------------------------------
+		//
+		//  Methods
+		//
+		//----------------------------------------------------------------------------------------------------------------
+		
+		public function init():void
+		{
+			// 初始化通信服务器
+			SocketClient.getInstance().addEventListener(SocketEvent.CONNECT, server_connectHandler);
+			SocketClient.getInstance().addEventListener(SocketEvent.DISCONNECT, server_disconnectHandler);
+			SocketClient.getInstance().addEventListener(SocketEvent.LOG, server_logHandler);
+			SocketClient.getInstance().addEventListener(SocketEvent.MESSAGE, server_messageHandler);
+			
+			// load serverhost
+			var urlloader:URLLoader = new URLLoader();
+			urlloader.addEventListener(Event.COMPLETE, urlloader_completeHandler);
+			urlloader.load(new URLRequest("serverhost.txt"));
+		}
+		
+		/**
+		 * 重连服务器
+		 */		
+		public function reconnect():void
+		{
+			SocketClient.getInstance().reconnect();
+		}
+		
+		protected function urlloader_completeHandler(event:Event):void
+		{
+			SocketClient.getInstance().connect(event.currentTarget.data);
+		}
+		
+		public function dispose():void
+		{
+			SocketClient.getInstance().disconnect();
+		}
+		
+		public function sendMessage(message:Message):void
+		{
+			SocketClient.getInstance().send(message);
+		}
+		
+		protected function server_logHandler(event:SocketEvent):void
+		{
+			trace(event.descript);
+		}
+		
+		protected function server_messageHandler(event:SocketEvent):void
+		{
+			var message:Message = event.message;
+			switch(message.type)
+			{
+				case "student":
+				{
+					// 老师初始化一个带有ID的Student 然后发送给学生
+					// 学生拿到Student数据后 装填下name teamID 然后重新发送给老师
+					DataManager.getInstance().student.id = message.content.id;
+					
+					// 回发给老师
+					if (DataManager.getInstance().student.name && 
+						DataManager.getInstance().student.name.length&& 
+						DataManager.getInstance().student.teamID && 
+						DataManager.getInstance().student.teamID.length > 0)
+					{
+						var smessage:Message = new Message();
+						smessage.type = "student";
+						smessage.content = DataManager.getInstance().student;
+						ServiceManager.getInstance().sendMessage(smessage);
+					}
+					else
+						SettingView.getInstance().open();
+					
+					break;
+				}
+				case "teams":
+				{
+					var teams:Array = [];
+					var team:Team;
+					var needSelectedTeam:Boolean = true;
+					
+					for each(var teamObject:Object in message.content)
+					{
+						team = new Team();
+						team.id = teamObject.id;
+						team.name = teamObject.name;
+						teams.push(team);
+						
+						if (team.id == DataManager.getInstance().student.teamID)
+							needSelectedTeam = false;
+					}
+					
+					DataManager.getInstance().teams = teams;
+					
+					if (needSelectedTeam)
+						SettingView.getInstance().open();
+					else
+					{
+						var smessage2:Message = new Message();
+						smessage2.type = "student";
+						smessage2.content = DataManager.getInstance().student;
+						ServiceManager.getInstance().sendMessage(smessage2);
+					}
+					
+					break;
+				}
+				case "question":
+				{
+					var question:Question = new Question();
+					question.id = message.content.id;
+					question.name = message.content.name;
+					question.correctCount = message.content.correctCount;
+					for each(var answer:Object in message.content.answers)
+					{
+						question.answers.push(answer);
+					}
+					QuestionView.getInstance().open(question);
+					break;
+				}
+				default:
+				{
+					break;
+				}
+			}
+		}
+		
+		protected function server_disconnectHandler(event:SocketEvent):void
+		{
+			dispatchEvent(new SocketEvent(SocketEvent.DISCONNECT));
+		}
+		
+		protected function server_connectHandler(event:SocketEvent):void
+		{
+			dispatchEvent(new SocketEvent(SocketEvent.CONNECT));
+		}
+		
+	}
+}
+
+

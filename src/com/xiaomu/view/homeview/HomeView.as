@@ -1,0 +1,89 @@
+package com.xiaomu.view.homeview
+{
+	import com.xiaomu.manager.ServiceManager;
+	
+	import flash.events.MouseEvent;
+	
+	import coco.component.Image;
+	import coco.component.SkinComponent;
+	import coco.event.SocketEvent;
+	
+	/**
+	 * 首页 
+	 * @author coco
+	 * 
+	 */	
+	public class HomeView extends SkinComponent
+	{
+		public function HomeView()
+		{
+			super();
+		}
+		
+		private var computerDisplay:Image;
+		private var linkDisplay:Image;
+		private var serverDisplay:Image;
+		
+		override protected function createChildren():void
+		{
+			super.createChildren();
+			
+			computerDisplay = new Image();
+			computerDisplay.width = 240;
+			computerDisplay.height = 200;
+			computerDisplay.source = "assets/computer.png";
+			addChild(computerDisplay);
+			
+			linkDisplay = new Image();
+			linkDisplay.width = 128;
+			linkDisplay.height = 128;
+			linkDisplay.source = "assets/remove_link.png";
+			linkDisplay.mouseEnabled = true;
+			linkDisplay.buttonMode = true;
+			linkDisplay.addEventListener(MouseEvent.CLICK, linkDisplay_clickHandler);
+			addChild(linkDisplay);
+			
+			serverDisplay = new Image();
+			serverDisplay.width = 240;
+			serverDisplay.height = 240;
+			serverDisplay.source = "assets/server.png";
+			addChild(serverDisplay);
+			
+			ServiceManager.getInstance().addEventListener(SocketEvent.CONNECT, server_connectHandler);
+			ServiceManager.getInstance().addEventListener(SocketEvent.DISCONNECT, server_disconnectHandler);
+			ServiceManager.getInstance().init();
+		}
+		
+		protected function linkDisplay_clickHandler(event:MouseEvent):void
+		{
+			ServiceManager.getInstance().reconnect();
+		}
+		
+		override protected function updateDisplayList():void
+		{
+			super.updateDisplayList();
+			
+			computerDisplay.x = (width / 2 - computerDisplay.width) / 2;
+			computerDisplay.y = (height - computerDisplay.height) / 2;
+			
+			linkDisplay.x = (width - linkDisplay.width) / 2;
+			linkDisplay.y = (height - linkDisplay.height) / 2;
+			
+			serverDisplay.x = (width * 3 / 2 - serverDisplay.width) / 2;
+			serverDisplay.y = (height - serverDisplay.height) / 2;
+		}
+		
+		protected function server_connectHandler(event:SocketEvent):void
+		{
+			linkDisplay.source = "assets/insert_link.png";
+			linkDisplay.mouseEnabled = false;
+		}
+		
+		protected function server_disconnectHandler(event:SocketEvent):void
+		{
+			linkDisplay.source = "assets/remove_link.png";
+			linkDisplay.mouseEnabled = true;
+		}
+		
+	}
+}
